@@ -4,7 +4,7 @@ from app.extensions import db, migrate
 from flask_cors import CORS
 
 def create_app():
-    MAX_CONTENT_LENGTH = 20 * 1024 * 1024  # 20 MB
+    MAX_CONTENT_LENGTH = 25 * 1024 * 1024  # 20 MB
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
     
