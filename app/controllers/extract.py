@@ -71,6 +71,8 @@ def extract_pdf():
         return jsonify({"error": "No file part"}), 400
 
     f = request.files["file"]
+    classId = request.form["classId"]
+
     if f.filename == "":
         return jsonify({"error": "No selected file"}), 400
     if not allowed_file(f.filename):
@@ -96,8 +98,8 @@ def extract_pdf():
         content_parts = [{"type": "text", "text": SCHEMA_HINT}]
         content_parts += [{"type": "image_url", "image_url": {"url": u}} for u in data_url]
         resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            temperature=0,
+            model="gpt-5-mini",
+            temperature=1,
             messages=[
                 {"role": "system", "content": "You extract structured data from documents and output strict JSON."},
                 {"role": "user", "content": content_parts}
@@ -125,7 +127,8 @@ def extract_pdf():
             filename=fileName,
             units=payload["units"],
             modules=payload["modules"],
-            receiptDates=payload["receiptDates"]
+            receiptDates=payload["receiptDates"],
+            classId = int(classId)
         )
         db.session.add(student)
         db.session.commit()

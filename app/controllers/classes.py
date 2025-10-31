@@ -10,10 +10,16 @@ def list_classes():
     return jsonify([c.to_dict() for c in classList])
 
 
+@classes_bp.route("/<int:id>", methods=["GET"])
+def getById(id):
+    c = Classes.query.get(id)
+    return jsonify(c.to_dict())
+
+
 @classes_bp.route("/save", methods=["POST"])
 def create_user():
     data = request.get_json() or {}
-    
+
     classObj = Classes(
         program = data.get("program"),
         course = data.get("course"),

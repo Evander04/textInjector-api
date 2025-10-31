@@ -34,9 +34,12 @@ def create_app():
     from app.controllers.users import users_bp
     from app.controllers.extract import extract_bp
     from app.controllers.classes import classes_bp
+    from app.controllers.student import student_bp
 
     app.register_blueprint(users_bp, url_prefix="/api/users")
     app.register_blueprint(extract_bp, url_prefix="/api/extract")
     app.register_blueprint(classes_bp, url_prefix="/api/classes")
+    app.register_blueprint(student_bp, url_prefix="/api/students")
+
 
     return app
