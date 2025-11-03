@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from app.extensions import db
 from app.models.student import Student
+from app.models.classes import Classes
 from werkzeug.utils import secure_filename
 from openai import OpenAI
 import os
@@ -114,10 +115,12 @@ def extract_pdf():
         
         payload = json.loads(raw[start:end+1])
         payload = postprocess_payload(payload)
+        classObj = Classes.query.get(classId)
         student = Student(
             firstName=payload["firstName"],
             middleName=payload["middleName"],
             lastName=payload["lastName"],
+            address=payload["address"],
             phone=payload["phone"],
             dob=payload["dob"],
             ssn=payload["ssn"],
@@ -128,7 +131,9 @@ def extract_pdf():
             units=payload["units"],
             modules=payload["modules"],
             receiptDates=payload["receiptDates"],
-            classId = int(classId)
+            classId = int(classId),
+            graduationDate = classObj.graduationDate,
+            certiDate = classObj.certiDate
         )
         db.session.add(student)
         db.session.commit()
