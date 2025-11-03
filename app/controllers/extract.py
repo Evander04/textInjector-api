@@ -132,7 +132,7 @@ def extract_pdf():
             modules=payload["modules"],
             receiptDates=payload["receiptDates"],
             classId = int(classId),
-            graduationDate = classObj.graduationDate,
+            graduationDate = payload["graduatedDate"],
             certiDate = classObj.certiDate
         )
         db.session.add(student)

@@ -8,6 +8,7 @@ class Student(db.Model):
     firstName = db.Column(db.String(100), nullable=False)
     middleName = db.Column(db.String(100), nullable=False)
     lastName = db.Column(db.String(100), nullable=False)
+    address = db.Column(db.String(500), nullable=False)
     phone = db.Column(db.String(20), nullable=False)
     dob = db.Column(db.String(20), nullable=False)
     ssn = db.Column(db.String(20), nullable=False)
@@ -19,6 +20,9 @@ class Student(db.Model):
     modules = db.Column(ARRAY(db.String),default=[])
     receiptDates = db.Column(ARRAY(db.String),default=[])
     classId = db.Column(db.Integer,nullable=False,default=0)
+    graduationDate = db.Column(db.String(20))
+    certiDate = db.Column(db.String(20))
+    
 
     def __repr__(self):
         return f"<Student {self.firstName} {self.lastName}>"
@@ -30,6 +34,7 @@ class Student(db.Model):
             "firstName": self.firstName,
             "middleName": self.middleName,
             "lastName": self.lastName,
+            "address": self.address,
             "phone": self.phone,
             "dob": self.dob,
             "ssn": self.ssn,
@@ -39,5 +44,7 @@ class Student(db.Model):
             "units": self.units or [],
             "modules": self.modules or [],
             "receiptDates": self.receiptDates or [],
-            "classId": self.classId
+            "classId": self.classId,
+            "graduationDate": self.graduationDate,
+            "certiDate": self.certiDate,
         }

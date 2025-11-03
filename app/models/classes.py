@@ -13,6 +13,8 @@ class Classes(db.Model):
     certiDate = db.Column(db.String,nullable=False)    
     teacher = db.Column(db.String,nullable=False)    
     hours = db.Column(db.String,nullable=False)    
+    days = db.Column(db.String)
+    sessionType = db.Column(db.String)
     total = db.Column(db.String,nullable=False)    
     registration = db.Column(db.String,nullable=False)    
     tuition = db.Column(db.String,nullable=False)    
@@ -34,6 +36,8 @@ class Classes(db.Model):
             "certiDate": self.certiDate,
             "teacher": self.teacher,
             "hours": self.hours,
+            "days": self.days,
+            "sessionType": self.sessionType,
             "total": self.total,
             "registration": self.registration,
             "tuition": self.tuition,
