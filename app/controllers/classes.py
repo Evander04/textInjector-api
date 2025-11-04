@@ -29,6 +29,8 @@ def create_user():
         certiDate = data.get("certiDate"),
         teacher = data.get("teacher"),
         hours = data.get("hours"),
+        days = data.get("days"),
+        sessionType = data.get("sessionType"),
         total = data.get("total"),
         registration = data.get("registration"),
         tuition = data.get("tuition"),

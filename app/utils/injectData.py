@@ -5,7 +5,7 @@ import os
 from io import BytesIO
 
 TEMPLATE_PATH = os.getenv("TEMPLATE_PATH")
-templateArray =['Template Ledger.docx']
+templateArray =['Template Ledger.docx','Template Progress.docx','Template Transcript.docx','Template SAP.docx']
 def injectTemplate(replacements,type):
     fullname = replacements["@firstName"]+replacements["@middleName"]+replacements["@lastName"]
     print(f"======== creating ledger for {fullname} =========")
