@@ -36,7 +36,8 @@ def create_user():
         tuition = data.get("tuition"),
         dateUnits = data.get("dateUnits"),
         dateModules = data.get("dateModules"),
-        classType = data.get("classType")
+        classType = data.get("classType"),
+        midpoint = data.get("midpoint"),
     )
     db.session.add(classObj)
     db.session.commit()

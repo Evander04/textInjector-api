@@ -21,6 +21,7 @@ class Classes(db.Model):
     dateUnits = db.Column(ARRAY(db.String),default=[])
     dateModules = db.Column(ARRAY(db.String),default=[])
     classType = db.Column(db.Integer,nullable=False) #1:PCA, 2: Upgrade, 3:HHA
+    midpoint = db.Column(db.String)
     
     def __repr__(self):
         return f"<Class {self.firstName} {self.program}>"
@@ -44,4 +45,5 @@ class Classes(db.Model):
             "dateUnits": self.dateUnits or [],
             "dateModules": self.dateModules or [],
             "classType": self.classType,
+            "midpoint": self.midpoint,
         }
