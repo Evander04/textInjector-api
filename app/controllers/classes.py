@@ -6,7 +6,7 @@ classes_bp = Blueprint("classes",__name__)
 
 @classes_bp.route("/", methods=["GET"])
 def list_classes():
-    classList = Classes.query.all()
+    classList = Classes.query.order_by(Classes.id.asc()).all()
     return jsonify([c.to_dict() for c in classList])
 
 

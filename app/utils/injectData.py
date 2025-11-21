@@ -181,7 +181,7 @@ def insertLedgerValues(replacements,student,classObj):
     newBalance = int(classObj.total)-int(classObj.registration)
     replacements["@newb1"] = str(newBalance)
 
-    if classObj.classType == 3: # HHA
+    if classObj.classType == 3 and len(student.get("receiptDates")) > 2: # HHA
         replacements["@pay1"] = "350"
         newBalance = newBalance - 350
         replacements["@newb2"] = str(newBalance)
