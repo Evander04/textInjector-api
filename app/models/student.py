@@ -22,6 +22,12 @@ class Student(db.Model):
     classId = db.Column(db.Integer,nullable=False,default=0)
     graduationDate = db.Column(db.String(20))
     certiDate = db.Column(db.String(20))
+    workStatus = db.Column(db.String(20), nullable=True, default="Not Employed")
+    agency = db.Column(db.String(100), nullable=True, default="")
+    interested = db.Column(db.String(10), nullable=True, default="")
+    lot= db.Column(db.Integer, nullable=True, default=0)
+    campaign= db.Column(db.Integer, nullable=True, default=0)
+
     
 
     def __repr__(self):
@@ -47,4 +53,7 @@ class Student(db.Model):
             "classId": self.classId,
             "graduationDate": self.graduationDate,
             "certiDate": self.certiDate,
+            "workStatus": self.workStatus,
+            "agency": self.agency,
+            "interested": self.interested,
         }

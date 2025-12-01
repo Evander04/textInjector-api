@@ -44,7 +44,7 @@ from sqlalchemy.exc import SQLAlchemyError
 # -----------------------------
 DB_URL = os.getenv(
     "DB_URL",
-    "postgresql+psycopg2://user:password@127.0.0.1:5432/mydb",
+    "postgresql+psycopg2://devuser:developer123@localhost:5432/paperwork_dev",
 )
 
 Base = declarative_base()
@@ -111,41 +111,20 @@ def get_session():
 # Class name parsing helpers
 # -----------------------------
 
-def infer_class_type_from_name(course_name: str) -> int:
-    """
-    Very simple mapping based on first word of the course/file name.
-    Example file name: "HHA Spanish AM 3-1"
-    """
+def infer_class_type_from_name(course_name: str) -> int:    
     if not course_name:
         return 0
-    first_word = course_name.split()[0].upper()
-
-    if first_word == "PCA":
-        return 1
-    if first_word == "UPGRADE":
+        
+    if "UPGRADE" in course_name.upper():
         return 2
-    if first_word == "HHA":
+    if "HHA" in course_name.upper():
         return 3
-    return 0
+    return 1
 
 
 def build_class_from_filename(session, filename_stem: str) -> Classes:
-    """
-    Create or reuse a Classes row based on filename (without extension).
+    course_name = filename_stem.strip()    
 
-    Example:
-        filename_stem = "HHA Spanish AM 3-1"
-        program = "HHA"
-        course = "HHA Spanish AM 3-1"
-    """
-
-    course_name = filename_stem.strip()
-    program = course_name.split()[0] if course_name else "N/A"
-
-    # Try to find an existing class with same course name
-    existing = session.query(Classes).filter_by(course=course_name).first()
-    if existing:
-        return existing
 
     # Defaults / placeholders – adjust as needed
     registration = "0"
@@ -153,7 +132,7 @@ def build_class_from_filename(session, filename_stem: str) -> Classes:
     total = "0"
 
     new_class = Classes(
-        program=program,
+        program=course_name,
         course=course_name,
         startDate="00/00/0000",
         endDate="00/00/0000",
@@ -224,18 +203,16 @@ def import_json_file(session, json_path: Path):
         # e.g. "HHA Spanish AM 3-1_398 457 040"
         student_filename = f"{filename_stem}_{student_id or inserted}"
 
-        # Serialize payload as the original JSON object
-        payload_str = json.dumps(item, ensure_ascii=False)
-
+        
         # Skip if essential fields are missing (adjust as you like)
         if not first_name or not last_name:
             print(f"   - Skipping entry without name: {item}")
             continue
 
         # Check if this filename already exists (avoid unique constraint crash)
-        existing_student = session.query(Student).filter_by(filename=student_filename).first()
+        existing_student = session.query(Student).filter_by(studentId=student_id).first()
         if existing_student:
-            print(f"   - Student with filename '{student_filename}' already exists, skipping")
+            print(f"   - Student with studentId '{student_id}' already exists, skipping")
             continue
 
         student = Student(
@@ -248,7 +225,7 @@ def import_json_file(session, json_path: Path):
             ssn=ssn,
             studentId=student_id,
             email=email,
-            payload=payload_str,
+            payload="",
             filename=student_filename,
             units=[],
             modules=[],

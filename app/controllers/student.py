@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify, send_file
+from sqlalchemy.orm import defer
 from app.extensions import db
 from app.models.student import Student
 from app.models.classes import Classes
@@ -13,9 +14,26 @@ def list_student():
 
 @student_bp.route("/getByClass/<int:id>", methods=["GET"])
 def getStudentsByClass(id):
-    list = Student.query.filter_by(classId=int(id)).order_by(Student.id.asc()).all()
+    list = Student.query.options(defer(Student.payload)).filter_by(classId=int(id)).order_by(Student.id.asc()).all()
     return jsonify([c.to_dict() for c in list])
 
+@student_bp.route("/updateStudentWorkStatus", methods=["POST"])
+def updateStudentWorkStatus():
+    data = request.get_json() or {}
+    studentId = data.get("studentId")
+    workStatus = data.get("workStatus")
+    agency = data.get("agency")
+    interested = data.get("interested")
+
+    studentObj = Student.query.get(int(studentId))
+    if studentObj:
+        studentObj.workStatus = workStatus
+        studentObj.agency = agency
+        studentObj.interested = interested
+        db.session.commit()
+        return jsonify({"message": "Student work status updated successfully"}), 200
+    else:
+        return jsonify({"error": "Student not found"}), 404    
 
 @student_bp.route("/generateFiles/<int:type>", methods=["POST"])
 def generateFiles(type):
