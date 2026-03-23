@@ -9,3 +9,6 @@ openai
 pdfminer.six
 pdf2image
 pillow
+playwright
+beautifulsoup4
+lxml

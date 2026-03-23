@@ -4,7 +4,7 @@ from app.extensions import db, migrate
 from flask_cors import CORS
 
 def create_app():
-    MAX_CONTENT_LENGTH = 35 * 1024 * 1024  # 35 MB
+    MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
     
@@ -35,11 +35,12 @@ def create_app():
     from app.controllers.extract import extract_bp
     from app.controllers.classes import classes_bp
     from app.controllers.student import student_bp
+    from app.controllers.hcr import hcr_bp
 
     app.register_blueprint(users_bp, url_prefix="/api/users")
     app.register_blueprint(extract_bp, url_prefix="/api/extract")
     app.register_blueprint(classes_bp, url_prefix="/api/classes")
     app.register_blueprint(student_bp, url_prefix="/api/students")
-
+    app.register_blueprint(hcr_bp, url_prefix="/api/hcr")
 
     return app
