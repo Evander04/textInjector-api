@@ -13,7 +13,7 @@ def create_app():
     app,
     resources={r"/api/*": {"origins": ["*"]}},
     supports_credentials=False,                    # set True only if using cookies
-    methods=["GET", "POST", "OPTIONS"],
+    methods=["GET", "POST", "PUT", "PATCH", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
     max_age=86400,
     )

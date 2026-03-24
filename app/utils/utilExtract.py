@@ -36,17 +36,17 @@ def normalize_address(val: str) -> str:
 def postprocess_payload(payload: dict) -> dict:
     # Ensure all keys exist
     keys = ["firstName","middleName","lastName","dob","phone","address",
-            "ssn","id","email","units","modules","receiptDates","graduatedDate",
+            "ssn","id","email","units","modules","receiptDates","receiptNumbers","receiptAmounts","graduatedDate",
             "certificateNumber","registryNumber"]
     for k in keys:
-        payload.setdefault(k, [] if k in {"units","modules","receiptDates"} else "")
+        payload.setdefault(k, [] if k in {"units","modules","receiptDates","receiptNumbers","receiptAmounts"} else "")
 
     payload["phone"] = fix_phone(payload.get("phone",""))
     payload["id"] = fix_id(payload.get("id",""))
     payload["address"] = normalize_address(payload.get("address",""))
 
     # Arrays must be lists
-    for ak in ("units","modules","receiptDates"):
+    for ak in ("units","modules","receiptDates","receiptNumbers","receiptAmounts"):
         v = payload.get(ak)
         if not isinstance(v, list): payload[ak] = [] if not v else [v]
     return payload

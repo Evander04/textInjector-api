@@ -19,6 +19,8 @@ class Student(db.Model):
     units = db.Column(ARRAY(db.String),default=[])
     modules = db.Column(ARRAY(db.String),default=[])
     receiptDates = db.Column(ARRAY(db.String),default=[])
+    receiptNumbers = db.Column(ARRAY(db.String),default=[])
+    receiptAmounts = db.Column(ARRAY(db.String),default=[])
     classId = db.Column(db.Integer,nullable=False,default=0)
     graduationDate = db.Column(db.String(20))
     certiDate = db.Column(db.String(20))
@@ -50,6 +52,8 @@ class Student(db.Model):
             "units": self.units or [],
             "modules": self.modules or [],
             "receiptDates": self.receiptDates or [],
+            "receiptNumbers": self.receiptNumbers or [],
+            "receiptAmounts": self.receiptAmounts or [],
             "classId": self.classId,
             "graduationDate": self.graduationDate,
             "certiDate": self.certiDate,

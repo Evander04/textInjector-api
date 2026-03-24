@@ -59,6 +59,103 @@ Rules and conversions:
 - Do not add explanations; output pure JSON only.
 """
 
+SCHEMA_HINT_CNA = """
+You are a document data extractor.
+Return ONLY valid JSON, nothing else.
+
+Expected JSON schema:
+{
+  "firstName": "",
+  "middleName": "",
+  "lastName": "",
+  "dob": "",
+  "phone": "",
+  "address": "",
+  "ssn": "",
+  "id": "",
+  "email": "",
+  "modules": ["A+", "A", "B", "C", "", "", "", "", "", "", ""],
+  "receiptDates": ["mm/dd/yyyy"],
+  "receiptAmounts": ["0.00"],
+  "graduatedDate": "mm/dd/yyyy",
+  "certificateNumber": "",
+  "registryNumber": ""
+}
+
+Rules and conversions:
+- Examine the entire image set.
+- Do NOT infer values. Only extract what is explicitly visible.
+- Extract the same student/profile fields used for PCA, PCA Upgrade, and HHA.
+- "Modules" -> look for section headers like "MODULE 1...11" or "MODULO 1...11".
+- For each module, read the numeric score near that section and map:
+  100->A+, 90->A, 80->B, 70->C.
+- Return all 11 modules in order. Use "" if a slot is missing.
+- Do not extract units for CNA. Return "units": [].
+- "receiptDates" -> extract all receipt dates in document order, formatted as mm/dd/yyyy.
+- "receiptAmounts" -> extract the dollar amount for each receipt in the same order as receiptDates.
+- Keep receiptDates and receiptAmounts aligned by index. If a receipt has a date but no readable amount, use "" for that slot.
+- Return receiptAmounts as plain numeric strings when possible, for example "200" or "200.00". Do not include currency symbols unless the document only shows the symbol together with the value.
+- "graduatedDate" -> date after phrases "as of" format mm/dd/yyyy.
+- Format:
+  - phone -> (###) ###-####
+  - id -> group every 3 digits with spaces (keep leading letters if present)
+  - address -> "street, city, state, zip"
+- If a field is missing, return an empty string ("") or [] for arrays.
+- Do not add explanations; output pure JSON only.
+"""
+
+
+def _extract_student_payload(pdf_bytes, schema_hint):
+    data_url = pdf_to_page_images(pdf_bytes, dpi=300, max_pages=20)
+    content_parts = [{"type": "text", "text": schema_hint}]
+    content_parts += [{"type": "image_url", "image_url": {"url": u}} for u in data_url]
+    resp = client.chat.completions.create(
+        model="gpt-5-mini",
+        temperature=1,
+        messages=[
+            {"role": "system", "content": "You extract structured data from documents and output strict JSON."},
+            {"role": "user", "content": content_parts}
+        ],
+    )
+    raw = resp.choices[0].message.content.strip()
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start == -1 or end == -1:
+        raise ValueError(f"Extractor did not return JSON: {raw}")
+
+    payload = json.loads(raw[start:end+1])
+    return postprocess_payload(payload), content_parts
+
+
+def _save_extracted_student(payload, content_parts, fileName, classId):
+    classObj = Classes.query.get(classId)
+    if not classObj:
+        raise ValueError("Class not found")
+
+    student = Student(
+        firstName=payload["firstName"],
+        middleName=payload["middleName"],
+        lastName=payload["lastName"],
+        address=payload["address"],
+        phone=payload["phone"],
+        dob=payload["dob"],
+        ssn=payload["ssn"],
+        studentId=payload["id"],
+        email=payload["email"],
+        payload=str(content_parts),
+        filename=fileName,
+        units=payload["units"],
+        modules=payload["modules"],
+        receiptDates=payload["receiptDates"],
+        receiptAmounts=payload.get("receiptAmounts", []),
+        classId=int(classId),
+        graduationDate=payload["graduatedDate"],
+        certiDate=classObj.certiDate
+    )
+    db.session.add(student)
+    db.session.commit()
+    return student
+
 @extract_bp.route("/extractData", methods=["GET"])
 def extract():
         
@@ -92,52 +189,43 @@ def extract_pdf():
         return jsonify({"error": "Empty file"}), 400
 
     try:
-        # API CALL
-
-        #Convert to images
-        data_url = pdf_to_page_images(pdf_bytes,dpi=300,max_pages=20)
-        content_parts = [{"type": "text", "text": SCHEMA_HINT}]
-        content_parts += [{"type": "image_url", "image_url": {"url": u}} for u in data_url]
-        resp = client.chat.completions.create(
-            model="gpt-5-mini",
-            temperature=1,
-            messages=[
-                {"role": "system", "content": "You extract structured data from documents and output strict JSON."},
-                {"role": "user", "content": content_parts}
-            ],
-        )        
-        raw = resp.choices[0].message.content.strip()
-        # Extract the JSON block safely
-        start = raw.find("{")
-        end = raw.rfind("}")
-        if start == -1 or end == -1:
-            return jsonify({"error": "Extractor did not return JSON", "raw": raw}), 502
-        
-        payload = json.loads(raw[start:end+1])
-        payload = postprocess_payload(payload)
-        classObj = Classes.query.get(classId)
-        student = Student(
-            firstName=payload["firstName"],
-            middleName=payload["middleName"],
-            lastName=payload["lastName"],
-            address=payload["address"],
-            phone=payload["phone"],
-            dob=payload["dob"],
-            ssn=payload["ssn"],
-            studentId=payload["id"],
-            email=payload["email"],
-            payload=str(content_parts),
-            filename=fileName,
-            units=payload["units"],
-            modules=payload["modules"],
-            receiptDates=payload["receiptDates"],
-            classId = int(classId),
-            graduationDate = payload["graduatedDate"],
-            certiDate = classObj.certiDate
-        )
-        db.session.add(student)
-        db.session.commit()
+        payload, content_parts = _extract_student_payload(pdf_bytes, SCHEMA_HINT)
+        _save_extracted_student(payload, content_parts, fileName, classId)
         return jsonify(payload), 200    
+
+    except Exception as e:
+        print(str(e))
+        return jsonify({"error": str(e)}), 500
+
+
+@extract_bp.route("/pdfCna", methods=["POST","OPTIONS"])
+def extract_pdf_cna():
+
+    if "file" not in request.files:
+        return jsonify({"error": "No file part"}), 400
+
+    f = request.files["file"]
+    classId = request.form["classId"]
+
+    if f.filename == "":
+        return jsonify({"error": "No selected file"}), 400
+    if not allowed_file(f.filename):
+        return jsonify({"error": "Only PDF is allowed"}), 400
+
+    fileName = secure_filename(f.filename)
+    student = Student.query.filter_by(filename=fileName).first()
+
+    if student:
+        return jsonify({"message": "Already scanned"}), 200
+
+    pdf_bytes = f.read()
+    if not pdf_bytes:
+        return jsonify({"error": "Empty file"}), 400
+
+    try:
+        payload, content_parts = _extract_student_payload(pdf_bytes, SCHEMA_HINT_CNA)
+        _save_extracted_student(payload, content_parts, fileName, classId)
+        return jsonify(payload), 200
 
     except Exception as e:
         print(str(e))
