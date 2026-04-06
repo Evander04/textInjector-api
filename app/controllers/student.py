@@ -3,9 +3,67 @@ from sqlalchemy.orm import defer
 from app.extensions import db
 from app.models.student import Student
 from app.models.classes import Classes
-from app.utils.injectData import injectTemplate, injectCnaTemplate, getFinalGrade, getGPA, parseFinalGrade, getFinalGradeSAP, getCnaFinalGrade, getCnaFinalGradeSAP, insertLedgerValues, insertCnaLedgerValues
+from werkzeug.utils import secure_filename
+from datetime import datetime
+from app.utils.injectData import injectTemplate, injectCnaTemplate, injectUploadedTemplate, injectLocalTemplate, getFinalGrade, getGPA, parseFinalGrade, getFinalGradeSAP, getCnaFinalGrade, getCnaFinalGradeSAP, insertLedgerValues, insertCnaLedgerValues
 
 student_bp = Blueprint("students", __name__)
+
+TYPE_CLASS_PRICING = {
+    "HHA": {"total": "700", "registration": "50", "tuition": "600", "book": "30", "uniform": "20"},
+    "PCA": {"total": "380", "registration": "30", "tuition": "300", "book": "30", "uniform": "20"},
+    "PCA Upgrade": {"total": "330", "registration": "30", "tuition": "300", "book": "0", "uniform": "0"},
+}
+
+
+def _format_receipt_date(value):
+    if not value:
+        return ""
+
+    for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%m-%d-%Y"):
+        try:
+            return datetime.strptime(str(value).strip(), fmt).strftime("%m/%d/%Y")
+        except ValueError:
+            continue
+
+    return value
+
+
+def _build_receipt_replacements(form):
+    first_name = form.get("firstName", "")
+    middle_name = form.get("middleName", "")
+    last_name = form.get("lastName", "")
+    short_address = form.get("shortAd", form.get("stAdress", ""))
+    city = form.get("city", "")
+    state = form.get("state", "")
+    zip_code = form.get("zip", form.get("zipcode", ""))
+    phone = form.get("phone", form.get("phoneNumber", ""))
+    receipt_date = _format_receipt_date(form.get("receiptDate", ""))
+    type_class = form.get("typeClass", "")
+    pricing = TYPE_CLASS_PRICING.get(type_class, {"total": "", "registration": "", "tuition": "", "book": "", "uniform": ""})
+
+    return {
+        "@firstName": first_name,
+        "@middleName": middle_name,
+        "@lastName": last_name,
+        "@shortAd": short_address,
+        "@stAdress": short_address,
+        "@city": city,
+        "@state": state,
+        "@zip": zip_code,
+        "@zipcode": zip_code,
+        "@phone": phone,
+        "@phoneNumber": phone,
+        "@receiptDate": receipt_date,
+        "@ledate1": receipt_date,
+        "@typeClass": type_class,
+        "@program": type_class,
+        "@total": pricing["total"],
+        "@registration": pricing["registration"],
+        "@tuition": pricing["tuition"],
+        "@book": pricing["book"],
+        "@uniform": pricing["uniform"],
+    }
 
 UPDATABLE_STUDENT_FIELDS = {
     "firstName",
@@ -40,6 +98,47 @@ def list_student():
 def getStudentsByClass(id):
     list = Student.query.options(defer(Student.payload)).filter_by(classId=int(id)).order_by(Student.id.asc()).all()
     return jsonify([c.to_dict() for c in list])
+
+
+@student_bp.route("/injectWordDocument", methods=["POST"])
+def inject_word_document():
+    if "file" not in request.files:
+        return jsonify({"error": "No file part"}), 400
+
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"error": "No selected file"}), 400
+
+    filename = secure_filename(file.filename)
+    if not filename.lower().endswith(".docx"):
+        return jsonify({"error": "Only .docx Word documents are allowed"}), 400
+
+    replacements = _build_receipt_replacements(request.form)
+
+    injected_file = injectUploadedTemplate(replacements, file.stream)
+    return send_file(
+        injected_file,
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        as_attachment=True,
+        download_name=filename
+    )
+
+
+@student_bp.route("/receipt", methods=["POST"])
+def generate_receipt():
+    replacements = _build_receipt_replacements(request.form)
+    receipt_file = injectLocalTemplate(replacements, "Template Receipt.docx")
+
+    download_name = (
+        f"{request.form.get('firstName', '')}{request.form.get('lastName', '')}Receipt.docx"
+    )
+
+    return send_file(
+        receipt_file,
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        as_attachment=True,
+        download_name=download_name
+    )
 
 
 @student_bp.route("/<int:id>", methods=["PUT", "PATCH"])
@@ -124,7 +223,7 @@ def generateFiles(type):
         "@tuition": f"{classObj.tuition}",
         "@hours": classObj.hours,
         "@finalSsn":student.get("ssn")[-4:] if ssn !="" else "0000",
-        "@finalHours":classObj.hours[:2],
+        "@finalHours":classObj.hours,
         "@certiDate":student.get("certiDate"),
         "@email":student.get("email") if "lincoln" not in student.get("email") else "",
         "@days":classObj.days,
@@ -175,7 +274,14 @@ def generateFiles(type):
         replacements[key]=date       
     
     finalGrade = getFinalGrade(moduleGrades,unitGrades,classObj.classType)
-    finalGradeSAP = getFinalGradeSAP(moduleGrades,unitGrades,classObj.classType)
+    finalGradeSAP = getFinalGradeSAP(
+        moduleGrades,
+        unitGrades,
+        classObj.classType,
+        moduleDates=moduleDates,
+        unitDates=unitDates,
+        midpoint=classObj.midpoint,
+    )
     replacements["@unig"] = unig
     replacements["@fscore"] = fscore
     replacements["@fgrade"] = parseFinalGrade(finalGrade)

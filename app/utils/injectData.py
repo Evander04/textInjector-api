@@ -101,6 +101,9 @@ def injectTemplate(replacements,type):
             for cell in row.cells:
                 _replace_in_cell(cell, replacements)
 
+    if type == 0:
+        _fill_standard_ledger_table(doc, replacements)
+
 
     # Write to memory
     output_stream = BytesIO()
@@ -131,6 +134,41 @@ def injectCnaTemplate(replacements, type):
     return output_stream
 
 
+def injectUploadedTemplate(replacements, file_stream):
+    file_bytes = file_stream.read()
+    doc = Document(BytesIO(file_bytes))
+
+    for p in doc.paragraphs:
+        _replace_in_paragraph(p, replacements)
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                _replace_in_cell(cell, replacements)
+
+    output_stream = BytesIO()
+    doc.save(output_stream)
+    output_stream.seek(0)
+    return output_stream
+
+
+def injectLocalTemplate(replacements, template_name):
+    doc = Document(os.path.join(TEMPLATE_PATH, template_name))
+
+    for p in doc.paragraphs:
+        _replace_in_paragraph(p, replacements)
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                _replace_in_cell(cell, replacements)
+
+    output_stream = BytesIO()
+    doc.save(output_stream)
+    output_stream.seek(0)
+    return output_stream
+
+
 def _format_money(value):
     return f"${int(value)}" if float(value).is_integer() else f"${float(value):.2f}"
 
@@ -150,7 +188,33 @@ def _fill_cna_ledger_table(doc, replacements):
         _write_cna_ledger_cell(row.cells[0], ledger_row.get("date", ""))
         _write_cna_ledger_cell(row.cells[1], ledger_row.get("receipt_number", ""))
         _write_cna_ledger_cell(row.cells[2], ledger_row.get("description", ""))
-        _write_cna_ledger_cell(row.cells[3], "", bold=True)
+        _write_cna_ledger_cell(row.cells[3], ledger_row.get("charged", ""), bold=True)
+        _write_cna_ledger_cell(row.cells[4], ledger_row.get("credited", ""))
+        _write_cna_ledger_cell(row.cells[5], ledger_row.get("old_balance", ""))
+        _write_cna_ledger_cell(row.cells[6], ledger_row.get("new_balance", ""), bold=True)
+
+    for idx in range(len(ledger_rows) + 1, len(ledger_table.rows)):
+        row = ledger_table.rows[idx]
+        for cell_index in range(len(row.cells)):
+            _write_cna_ledger_cell(row.cells[cell_index], "", bold=(cell_index in {3, 6}))
+
+
+def _fill_standard_ledger_table(doc, replacements):
+    if len(doc.tables) < 9:
+        return
+
+    ledger_table = doc.tables[8]
+    ledger_rows = replacements.get("__ledger_rows__", [])
+
+    _ensure_cna_ledger_row_capacity(ledger_table, len(ledger_rows))
+
+    for idx in range(1, min(len(ledger_table.rows), len(ledger_rows) + 1)):
+        row = ledger_table.rows[idx]
+        ledger_row = ledger_rows[idx - 1]
+        _write_cna_ledger_cell(row.cells[0], ledger_row.get("date", ""))
+        _write_cna_ledger_cell(row.cells[1], ledger_row.get("receipt_number", ""))
+        _write_cna_ledger_cell(row.cells[2], ledger_row.get("description", ""))
+        _write_cna_ledger_cell(row.cells[3], ledger_row.get("charged", ""), bold=True)
         _write_cna_ledger_cell(row.cells[4], ledger_row.get("credited", ""))
         _write_cna_ledger_cell(row.cells[5], ledger_row.get("old_balance", ""))
         _write_cna_ledger_cell(row.cells[6], ledger_row.get("new_balance", ""), bold=True)
@@ -293,67 +357,118 @@ def getCnaFinalGradeSAP(studentModules, moduleDates, midpoint):
     return sum(completed_scores) / len(completed_scores)
 
 
+def _get_scores_completed_by_midpoint(grades, dates, midpoint):
+    midpoint_date = _parse_class_date(midpoint)
+    if not midpoint_date:
+        return []
 
-def getFinalGradeSAP(studentModules,studentUnits,classType):
+    completed_scores = []
+    for grade, item_date in zip(grades, dates):
+        parsed_date = _parse_class_date(item_date)
+        if parsed_date and parsed_date <= midpoint_date and grade in gradeDic:
+            completed_scores.append(gradeDic[grade])
+
+    return completed_scores
+
+
+def getFinalGradeSAP(studentModules, studentUnits, classType, moduleDates=None, unitDates=None, midpoint=None):
     modules = [gradeDic[m] for m in studentModules]
-    units = [gradeDic[u] for u in studentUnits]    
+    units = [gradeDic[u] for u in studentUnits]
+    moduleDates = moduleDates or []
+    unitDates = unitDates or []
     
     if classType == 1:
-        return sum(modules[:6])/ 6
+        completed_scores = _get_scores_completed_by_midpoint(studentModules, moduleDates, midpoint)
+        return sum(completed_scores) / len(completed_scores) if completed_scores else 0
     
     if classType == 2:
-        return sum(units[:4]) / 4
+        completed_scores = _get_scores_completed_by_midpoint(studentUnits, unitDates, midpoint)
+        return sum(completed_scores) / len(completed_scores) if completed_scores else 0
     
     if classType == 3:
-        total = sum(modules[:6]) + sum(units[:4])
-        return total / 12
+        completed_scores = _get_scores_completed_by_midpoint(studentModules, moduleDates, midpoint)
+        completed_scores += _get_scores_completed_by_midpoint(studentUnits, unitDates, midpoint)
+        return sum(completed_scores) / len(completed_scores) if completed_scores else 0
 
     has_modules = any(studentModules)
     has_units = any(studentUnits)
 
     if has_modules and has_units:
-        total = sum(modules[:6]) + sum(units[:4])
-        return total / 12
+        completed_scores = _get_scores_completed_by_midpoint(studentModules, moduleDates, midpoint)
+        completed_scores += _get_scores_completed_by_midpoint(studentUnits, unitDates, midpoint)
+        return sum(completed_scores) / len(completed_scores) if completed_scores else 0
 
     if has_modules:
-        sample = modules[:6] if len(modules) >= 6 else modules
-        return sum(sample) / len(sample) if sample else 0
+        completed_scores = _get_scores_completed_by_midpoint(studentModules, moduleDates, midpoint)
+        return sum(completed_scores) / len(completed_scores) if completed_scores else 0
 
     if has_units:
-        sample = units[:4] if len(units) >= 4 else units
-        return sum(sample) / len(sample) if sample else 0
+        completed_scores = _get_scores_completed_by_midpoint(studentUnits, unitDates, midpoint)
+        return sum(completed_scores) / len(completed_scores) if completed_scores else 0
 
     return 0
     
 
 def insertLedgerValues(replacements,student,classObj):
-    
-    replacements["@ledate1"] = student.get("receiptDates")[0]
-    replacements["@ledate2"] = student.get("receiptDates")[1]
-    newBalance = int(classObj.total)-int(classObj.registration)
-    replacements["@newb1"] = str(newBalance)
+    receipt_dates = student.get("receiptDates") or []
+    receipt_amounts = student.get("receiptAmounts") or []
+    ledger_rows = []
+    receipt_sequence = 1
 
-    if classObj.classType == 3 and len(student.get("receiptDates")) > 2: # HHA
-        replacements["@pay1"] = "350"
-        newBalance = newBalance - 350
-        replacements["@newb2"] = str(newBalance)
-        replacements["@ledate3"] = student.get("receiptDates")[2] if student.get("receiptDates")[2] else ""
-        replacements["@rowV1"] = "3"
-        replacements["@rowV2"] = classObj.course + " Tuition"
-        replacements["@rowV3"] = "$"+str(newBalance)
-        replacements["@rowV4"] = "$0"
-        replacements["@rowV5"] = "$"+str(newBalance)
-        replacements["@rowV6"] = "$0"
-    else: 
-        replacements["@pay1"] = str(newBalance)
-        replacements["@newb2"] = "0"
-        replacements["@ledate3"] = ""
-        replacements["@rowV1"] = ""
-        replacements["@rowV2"] = ""
-        replacements["@rowV3"] = ""
-        replacements["@rowV4"] = ""
-        replacements["@rowV5"] = ""
-        replacements["@rowV6"] = ""
+    try:
+        running_balance = float(str(classObj.total).replace("$", "").replace(",", "").strip())
+    except ValueError:
+        running_balance = 0.0
+
+    try:
+        registration_amount = float(str(classObj.registration).replace("$", "").replace(",", "").strip())
+    except ValueError:
+        registration_amount = 0.0
+
+    total_rows = max(len(receipt_dates), len(receipt_amounts), 4)
+
+    for idx in range(1, total_rows + 1):
+        date_value = receipt_dates[idx - 1] if len(receipt_dates) >= idx else ""
+        amount_value = receipt_amounts[idx - 1] if len(receipt_amounts) >= idx else ""
+
+        if idx == 1 and (date_value or amount_value or registration_amount):
+            payment_value = registration_amount
+            description = f"{classObj.course} Registration"
+        else:
+            if amount_value:
+                try:
+                    payment_value = float(str(amount_value).replace("$", "").replace(",", "").strip())
+                except ValueError:
+                    payment_value = 0.0
+            else:
+                payment_value = 0.0
+            description = f"{classObj.course} Tuition + Supplies" if (date_value or amount_value) else ""
+
+        if date_value or amount_value or (idx == 1 and registration_amount):
+            old_balance = running_balance
+            running_balance = max(running_balance - payment_value, 0)
+            ledger_rows.append({
+                "date": date_value,
+                "receipt_number": str(receipt_sequence),
+                "description": description,
+                "charged": _format_money(payment_value) if payment_value else "",
+                "credited": "$0",
+                "old_balance": _format_money(old_balance),
+                "new_balance": _format_money(running_balance),
+            })
+            receipt_sequence += 1
+        else:
+            ledger_rows.append({
+                "date": "",
+                "receipt_number": "",
+                "description": "",
+                "charged": "",
+                "credited": "",
+                "old_balance": "",
+                "new_balance": "",
+            })
+
+    replacements["__ledger_rows__"] = ledger_rows
 
 
 def insertCnaLedgerValues(replacements, student, classObj):
@@ -393,7 +508,8 @@ def insertCnaLedgerValues(replacements, student, classObj):
                 "date": date_value,
                 "receipt_number": str(receipt_sequence),
                 "description": description,
-                "credited": _format_money(payment_value) if payment_value else "",
+                "charged": _format_money(payment_value) if payment_value else "",
+                "credited": "$0" if (date_value or amount_value) else "",
                 "old_balance": _format_money(old_balance),
                 "new_balance": _format_money(running_balance),
             })
@@ -403,6 +519,7 @@ def insertCnaLedgerValues(replacements, student, classObj):
                 "date": "",
                 "receipt_number": "",
                 "description": "",
+                "charged": "",
                 "credited": "",
                 "old_balance": "",
                 "new_balance": "",

@@ -33,6 +33,7 @@ Expected JSON schema:
   "units": ["A+", "A", "B", "C"],
   "modules": ["A+", "A", "B", "C"],
   "receiptDates": ["mm/dd/yyyy"],
+  "receiptAmounts": ["0.00"],
   "graduatedDate": "mm/dd/yyyy",
   "certificateNumber": "",
   "registryNumber": ""
@@ -48,6 +49,8 @@ Rules and conversions:
 - If only units appear, return them; if only modules appear, return them; if both appear, include both arrays.
 - Return all grades in the correct order (A...H or 1...12); use "" if a slot is missing.
 - "receiptDates" → all dates found in RECEIPT sections; format as mm/dd/yyyy.
+- "receiptAmounts" -> extract the dollar amount for each receipt in the same order as receiptDates.
+- Keep receiptDates and receiptAmounts aligned by index. If a receipt has a date but no readable amount, use "" for that slot.
 - "graduatedDate" → date after phrases like "as of" / "graduated on"; format mm/dd/yyyy.
 - "certificateNumber" → numeric after "CERTIFICATE NUMBER".
 - "registryNumber" → numeric after "HOME CARE REGISTRY NUMBER".
