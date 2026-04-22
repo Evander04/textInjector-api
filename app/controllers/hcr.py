@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app.extensions import db
+from sqlalchemy import or_
 from werkzeug.utils import secure_filename
 from openai import OpenAI
 from app.utils.ocrPdf import pdf_to_page_images
@@ -149,6 +150,19 @@ def getByRegistry(id):
     s = Scrap.query.filter_by(registryNumber=str(id)).first()
     
     return jsonify(s.to_dict())
+
+
+@hcr_bp.route("/search", methods=["GET"])
+def search_scraps_by_name():
+    name = (request.args.get("name") or "").strip()
+    query = Scrap.query
+
+    if name:
+        pattern = f"%{name}%"
+        query = query.filter(Scrap.fullName.ilike(pattern))
+
+    scraps = query.order_by(Scrap.id.asc()).all()
+    return jsonify([scrap.to_dict() for scrap in scraps])
 
 
 @hcr_bp.route("/updateWonderlic/<int:id>", methods=["GET"])

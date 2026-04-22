@@ -36,11 +36,15 @@ def create_app():
     from app.controllers.classes import classes_bp
     from app.controllers.student import student_bp
     from app.controllers.hcr import hcr_bp
+    from app.controllers.referral import referral_bp
+    from app.controllers.caregiver import caregiver_bp
 
     app.register_blueprint(users_bp, url_prefix="/api/users")
     app.register_blueprint(extract_bp, url_prefix="/api/extract")
     app.register_blueprint(classes_bp, url_prefix="/api/classes")
     app.register_blueprint(student_bp, url_prefix="/api/students")
     app.register_blueprint(hcr_bp, url_prefix="/api/hcr")
+    app.register_blueprint(referral_bp, url_prefix="/api/referrals")
+    app.register_blueprint(caregiver_bp, url_prefix="/api/caregivers")
 
     return app

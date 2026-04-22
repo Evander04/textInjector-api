@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify, send_file
+from sqlalchemy import or_
 from sqlalchemy.orm import defer
 from app.extensions import db
 from app.models.student import Student
@@ -93,6 +94,25 @@ UPDATABLE_STUDENT_FIELDS = {
 def list_student():
     list = Student.query.all()
     return jsonify([c.to_dict() for c in list])
+
+
+@student_bp.route("/search", methods=["GET"])
+def search_students_by_name():
+    name = (request.args.get("name") or "").strip()
+    query = Student.query.options(defer(Student.payload))
+
+    if name:
+        pattern = f"%{name}%"
+        query = query.filter(
+            or_(
+                Student.firstName.ilike(pattern),
+                Student.middleName.ilike(pattern),
+                Student.lastName.ilike(pattern),
+            )
+        )
+
+    students = query.order_by(Student.id.asc()).all()
+    return jsonify([student.to_dict() for student in students])
 
 @student_bp.route("/getByClass/<int:id>", methods=["GET"])
 def getStudentsByClass(id):
@@ -235,15 +255,20 @@ def generateFiles(type):
     # HANDLE MODULES
     moduleGrades = [""]*12
     moduleDates = [""]*12
-    fscore = ""    
+    fscore = ""
     unig = ""
-    if len(student.get("modules")) > 1:
-        moduleGrades = student.get("modules")
-        fscore = moduleGrades[11]    
+    student_modules = student.get("modules") or []
+    student_units = student.get("units") or []
+    class_module_dates = classObj.dateModules or []
+    class_unit_dates = classObj.dateUnits or []
 
-    if len(classObj.dateModules) > 1:
-        moduleDates = classObj.dateModules
-        unig = moduleDates[11]
+    if len(student_modules) > 1:
+        moduleGrades = student_modules[:12]
+        fscore = moduleGrades[-1]
+
+    if len(class_module_dates) > 1:
+        moduleDates = class_module_dates[:12]
+        unig = moduleDates[-1]
     
     for i,grade in enumerate(moduleGrades):
         key = ("@mg" if i<9 else "@mge") +str(i+1)
@@ -257,13 +282,11 @@ def generateFiles(type):
     unitGrades = [""]*8
     unitDates = [""]*8
     
-    if len(student.get("units")) > 1:
-        unitGrades = student.get("units")
-        fscore = unitGrades[7]
+    if len(student_units) > 1:
+        unitGrades = student_units[:8]
 
-    if len(classObj.dateUnits) > 1:
-        unitDates = classObj.dateUnits
-        unig = unitDates[1]
+    if len(class_unit_dates) > 1:
+        unitDates = class_unit_dates[:8]
     
     for i,grade in enumerate(unitGrades):
         key = "@ug"+str(i+1)
@@ -271,7 +294,16 @@ def generateFiles(type):
 
     for i,date in enumerate(unitDates):
         key = "@ud"+str(i+1)
-        replacements[key]=date       
+        replacements[key]=date
+
+    if classObj.classType == 2 and len(unitGrades) > 0:
+        fscore = unitGrades[-1]
+        if len(unitDates) > 0:
+            unig = unitDates[-1]
+    elif classObj.classType == 3 and len(unitGrades) > 0:
+        fscore = unitGrades[-1]
+        if len(unitDates) > 0:
+            unig = unitDates[-1]
     
     finalGrade = getFinalGrade(moduleGrades,unitGrades,classObj.classType)
     finalGradeSAP = getFinalGradeSAP(
